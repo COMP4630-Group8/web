@@ -1,14 +1,31 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage()
+});
 
 const utils = require('../utils/index');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { v4: uuid } = require('uuid');
 const { verifyToken } = require('../middleware/auth');
 
 const League = require('../models/League');
 const Membership = require('../models/Membership');
 const Task = require('../models/Task');
 const Submission = require('../models/Submission');
+
 const { default: mongoose } = require('mongoose');
+
+const s3 = new S3Client({
+    endpoint: 'https://' + process.env.SPACES_ENDPOINT,
+    forcePathStyle: false,
+    region: process.env.SPACES_REGION,
+    credentials: {
+        accessKeyId: process.env.SPACES_KEY,
+        secretAccessKey: process.env.SPACES_SECRET,
+    },
+});
 
 /* Endpoint: GET /api/leagues */
 router.get('/', verifyToken(), async (req, res) => {
@@ -155,7 +172,6 @@ router.get('/:id/members', verifyToken(), async (req, res) => {
             league: new mongoose.Types.ObjectId(req.params.id)
         }
         const memberships = await Membership.find(query).populate('user');
-        const tasks = await Task.find({ league: req.params.id });
         for (let i = 0; i < memberships.length; i++) {
             const member = memberships[i];
             const user_stats = await getUserLeagueStats(member._id, req.params.id);
@@ -173,13 +189,103 @@ router.get('/:id/members', verifyToken(), async (req, res) => {
     }
 });
 
-router.post('/:id/submit', verifyToken(), async (req, res) => {
-    // TODO: Check to make sure user in league
-    // TODO: Check to make sure user has not submitted already
-    // TODO: For image submission ensure image has been passed over
-    // TODO: Ensure submission notes (for non image uploads) has characters
-    // TODO: Ensure submission is actually done between start-end time of the league
+router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, res) => {
+    const { task_id, summary } = req.body;
+    const validMember = await isValidMember(req.params.id, req.user.id);
+    const league = await League.findById(req.params.id);
+    if (!validMember) {
+        return res.status(401).json({
+            error: true,
+            message: 'Unauthorized',
+            data: null
+        });
+    }
+    const task = await Task.findById(task_id);
+    if (!task) {
+        return res.status(401).json({
+            error: true,
+            message: 'Not task found with the following ID',
+            data: null
+        });
+    } else if (task.league.toString() != req.params.id) {
+        return res.status(409).json({
+            error: true,
+            message: 'Conflict, task does not align with league provided.',
+            data: null
+        });
+    } else if (task.accepts_image && !req.file) {
+        return res.status(400).json({
+            error: true,
+            message: 'Image file required',
+            data: null
+        });
+    } else if (utils.isBetweenTimeWindow(league.start_date, league.end_date)) {
+        return res.status(401).json({
+            error: true,
+            message: 'Not task found with the following ID',
+            data: null
+        });
+    } else {
+        const existingSubmission = await Submission.findOne({
+            created_by: req.user.id,
+            task: task._id,
+            league: req.params.id
+        });
+        if (existingSubmission) {
+            return res.status(409).json({
+                error: true,
+                message: 'Cannot complete request, submission already exists.',
+                data: null
+            });
+        } else {
+            let image_url = null;
+            if (task.accepts_image) {
+                const uploadFolder = `leagues/${req.params.id}/submissions`;
+                image_url = await uploadImage(req.file, uploadFolder, {
+                    uploaded_by: req.user.id,
+                    campaign_id: req.params.id,
+                    original_name: req.file.originalname
+                });
+            }
+            if (!task.accepts_image && (!summary || summary == '')) {
+                return res.status(400).json({
+                    error: true,
+                    message: 'Summary is required for submission',
+                    data: null
+                });
+            }
+            const newSubmission = new Submission({
+                summary,
+                image_url: image_url,
+                task: task._id,
+                league: req.params.id,
+                created_by: req.user.id
+            });
+            await newSubmission.save();
+            return res.status(201).json({
+                error: false,
+                message: 'Submission successfully created',
+                data: newSubmission
+            });
+        }
+    }
 });
+
+const uploadImage = async (file, uploadFolder, metadata) => {
+    const accepted_mimes = ['image/jpeg', 'image/png'];
+    const { mimetype, buffer, size } = file;
+    const key = `${uploadFolder}/${uuid()}-${file.originalname}`;
+    const image_url = `https://${process.env.SPACES_BUCKET}.${process.env.SPACES_ENDPOINT}/${key}`
+    await s3.send(new PutObjectCommand({
+        Bucket: process.env.SPACES_BUCKET,
+        Key: key,
+        Body: buffer,
+        ACL: 'public-read',
+        ContentType: mimetype,
+        Metadata: metadata
+    }));
+    return image_url;
+}
 
 const isValidMember = async (leagueID, userID) => {
     const league = await League.findById(leagueID);

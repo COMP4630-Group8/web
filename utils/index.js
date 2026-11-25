@@ -16,7 +16,18 @@ const generateInviteCode = (length = 8) => {
     return code;
 }
 
+function isBetweenTimeWindow(startDateIso, endDateIso) {
+  const now = moment();
+  const start = moment(startDateIso);
+  const end = moment(endDateIso);
+  if (!start.isValid() || !end.isValid()) {
+    throw new Error("Invalid start or end ISO 8601 date string");
+  }
+  return now.isBetween(start, end, undefined, "[]");
+}
+
 module.exports = {
     isTokenExpired,
-    generateInviteCode
+    generateInviteCode,
+    isBetweenTimeWindow
 }
