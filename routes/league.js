@@ -124,11 +124,19 @@ router.get('/:id/submissions', verifyToken(), async (req, res) => {
         if (task) {
             query.task = new mongoose.Types.ObjectId(task)
         }
-        const submissions = await Submission.find(query);
+        const submissions = await Submission.find(query).populate('task created_by');
+        let response = [];
+        for (let i = 0; i < submissions.length; i++) {
+            const submission_detailed = {
+                ...submissions[i].toJSON(),
+                task: await getTaskDetailed(submissions[i].task, req.user.id)
+            }
+            response.push(submission_detailed);
+        }
         return res.json({
             error: false,
             message: 'Submissions successfully fetched',
-            data: submissions
+            data: response
         });
     }
 });
@@ -219,10 +227,10 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
             message: 'Image file required',
             data: null
         });
-    } else if (utils.isBetweenTimeWindow(league.start_date, league.end_date)) {
+    } else if (!utils.isBetweenTimeWindow(league.start_date, league.end_date)) {
         return res.status(401).json({
             error: true,
-            message: 'Not task found with the following ID',
+            message: 'Submission can only be made between the set time window.',
             data: null
         });
     } else {
@@ -272,6 +280,7 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
 });
 
 const uploadImage = async (file, uploadFolder, metadata) => {
+    // TODO: handle accepted types and crop
     const accepted_mimes = ['image/jpeg', 'image/png'];
     const { mimetype, buffer, size } = file;
     const key = `${uploadFolder}/${uuid()}-${file.originalname}`;
