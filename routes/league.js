@@ -356,4 +356,7 @@ const getUserLeagueStats = async (userID, leagueID) => {
     }
 }
 
-module.exports = router;
+module.exports = {
+    getTaskDetailed,
+    router
+};

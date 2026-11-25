@@ -15,7 +15,7 @@ router.get('/api', (_req, res) => {
 
 /* Main Routes */
 router.use('/api/auth', authRoutes);
-router.use('/api/leagues', leagueRoutes);
-// router.use('/api/user', userRoutes);
+router.use('/api/leagues', leagueRoutes.router);
+router.use('/api/user', userRoutes);
 
 module.exports = router;
