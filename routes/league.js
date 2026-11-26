@@ -37,7 +37,7 @@ router.get('/', verifyToken(), async (req, res) => {
             $in: memberships.map(m => m.league)
         }
     }
-    const leagues = await League.find(leagues_query).populate('host');
+    const leagues = await League.find(leagues_query).populate('host').sort({ date_created: -1 });
     let response = [];
     for (let i = 0; i < leagues.length; i++) {
         const league_detailed = await getLeagueDetailed(leagues[i]);
@@ -67,13 +67,15 @@ router.post('/create', verifyToken(), async (req, res) => {
         league: league._id
     });
     await membership.save();
-    await Task.insertMany(tasks.map(task => {
+    const task_docs = tasks.map(task => {
         return {
             league: league._id,
             ...task
         }
-    }));
-    const response = await getLeagueDetailed(league);
+    });
+    await Task.insertMany(task_docs);
+    const query = await League.findById(league._id).populate('host');
+    const response = await getLeagueDetailed(query);
     return res.json({
         error: false,
         message: 'League successfully created',
@@ -124,7 +126,7 @@ router.get('/:id/submissions', verifyToken(), async (req, res) => {
         if (task) {
             query.task = new mongoose.Types.ObjectId(task)
         }
-        const submissions = await Submission.find(query).populate('task created_by');
+        const submissions = await Submission.find(query).populate('task created_by').sort({ date_created: -1 });
         let response = [];
         for (let i = 0; i < submissions.length; i++) {
             const submission_detailed = await getSubmissionDetailed(req.user.id, submissions[i]);
@@ -224,6 +226,7 @@ router.get('/:id/members', verifyToken(), async (req, res) => {
 });
 
 router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, res) => {
+    console.log(req.body);
     const { task_id, summary } = req.body;
     const validMember = await isValidMember(req.params.id, req.user.id);
     const league = await League.findById(req.params.id);
@@ -288,8 +291,12 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
                     data: null
                 });
             }
+            let finalized_summary = summary;
+            if (task.accepts_image && (summary == '' || summary == null)) {
+                finalized_summary = null;
+            }
             const newSubmission = new Submission({
-                summary,
+                summary: finalized_summary,
                 image_url: image_url,
                 task: task._id,
                 league: req.params.id,
@@ -390,7 +397,7 @@ const getUserLeagueStats = async (userID, leagueID) => {
 const getSubmissionDetailed = async (userID, submission) => {
     return {
         ...submission.toJSON(),
-        task: await getTaskDetailed(submissions[i].task, userID)
+        task: await getTaskDetailed(submission.task, userID)
     }
 }
 
