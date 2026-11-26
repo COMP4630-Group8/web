@@ -127,10 +127,7 @@ router.get('/:id/submissions', verifyToken(), async (req, res) => {
         const submissions = await Submission.find(query).populate('task created_by');
         let response = [];
         for (let i = 0; i < submissions.length; i++) {
-            const submission_detailed = {
-                ...submissions[i].toJSON(),
-                task: await getTaskDetailed(submissions[i].task, req.user.id)
-            }
+            const submission_detailed = await getSubmissionDetailed(req.user.id, submissions[i]);
             response.push(submission_detailed);
         }
         return res.json({
@@ -299,11 +296,16 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
                 created_by: req.user.id
             });
             await newSubmission.save();
+
+            const submission = await Submission.findById(newSubmission._id).populate('task created_by');
+            const submission_detailed = await getSubmissionDetailed(req.user.id, submission);
+
             return res.status(201).json({
                 error: false,
                 message: 'Submission successfully created',
-                data: newSubmission
+                data: submission_detailed
             });
+            
         }
     }
 });
@@ -382,6 +384,13 @@ const getUserLeagueStats = async (userID, leagueID) => {
     return {
         completed_tasks: submissions.length,
         total_points
+    }
+}
+
+const getSubmissionDetailed = async (userID, submission) => {
+    return {
+        ...submission.toJSON(),
+        task: await getTaskDetailed(submissions[i].task, userID)
     }
 }
 
