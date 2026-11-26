@@ -4,11 +4,9 @@ const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const { getTaskDetailed } = require('./league');
 
-const League = require('../models/League');
 const Membership = require('../models/Membership');
 const Task = require('../models/Task');
 const Submission = require('../models/Submission');
-
 
 router.get('/feed', verifyToken(), async (req, res) => {
     const memberships = await Membership.find({

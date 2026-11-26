@@ -166,6 +166,36 @@ router.get('/:id/tasks', verifyToken(), async (req, res) => {
     }
 });
 
+router.get('/:id/tasks/:task_id', verifyToken(), async (req, res) => {
+    const validMember = await isValidMember(req.params.id, req.user.id);
+    if (!validMember) {
+        return res.status(401).json({
+            error: true,
+            message: 'Unauthorized',
+            data: null
+        });
+    } else {
+        let response = [];
+        const task = await Task.findOne({
+            _id: req.params.task_id,
+            league: req.params.id
+        });
+        if (!task) {
+            return res.status(404).json({
+                error: true,
+                message: 'Unable to find task',
+                data: null
+            });
+        }
+        const task_detailed = await getTaskDetailed(task, req.user.id);
+        return res.status(404).json({
+            error: false,
+            message: 'Task fetched',
+            data: task_detailed
+        });
+    }
+});
+
 router.get('/:id/members', verifyToken(), async (req, res) => {
     const validMember = await isValidMember(req.params.id, req.user.id);
     if (!validMember) {
