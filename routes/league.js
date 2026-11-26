@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
 const upload = multer({
   storage: multer.memoryStorage()
 });
 
 const utils = require('../utils/index');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { v4: uuid } = require('uuid');
 const { verifyToken } = require('../middleware/auth');
 
 const League = require('../models/League');
@@ -321,7 +321,7 @@ const uploadImage = async (file, uploadFolder, metadata) => {
     // TODO: handle accepted types and crop
     const accepted_mimes = ['image/jpeg', 'image/png'];
     const { mimetype, buffer, size } = file;
-    const key = `${uploadFolder}/${uuid()}-${file.originalname}`;
+    const key = `${uploadFolder}/${crypto.randomUUID()}-${file.originalname}`;
     const image_url = `https://${process.env.SPACES_BUCKET}.${process.env.SPACES_ENDPOINT}/${key}`
     await s3.send(new PutObjectCommand({
         Bucket: process.env.SPACES_BUCKET,
