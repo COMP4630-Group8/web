@@ -82,7 +82,7 @@ router.post('/create', verifyToken(), async (req, res) => {
 });
 
 router.get('/:id', verifyToken(), async (req, res) => {
-    const league = await League.findById(req.params.id);
+    const league = await League.findById(req.params.id).populate('host');
     if (!league) {
         return res.status(404).json({
             error: true,
@@ -175,7 +175,6 @@ router.get('/:id/tasks/:task_id', verifyToken(), async (req, res) => {
             data: null
         });
     } else {
-        let response = [];
         const task = await Task.findOne({
             _id: req.params.task_id,
             league: req.params.id
@@ -188,7 +187,7 @@ router.get('/:id/tasks/:task_id', verifyToken(), async (req, res) => {
             });
         }
         const task_detailed = await getTaskDetailed(task, req.user.id);
-        return res.status(404).json({
+        return res.json({
             error: false,
             message: 'Task fetched',
             data: task_detailed
@@ -212,7 +211,7 @@ router.get('/:id/members', verifyToken(), async (req, res) => {
         const memberships = await Membership.find(query).populate('user');
         for (let i = 0; i < memberships.length; i++) {
             const member = memberships[i];
-            const user_stats = await getUserLeagueStats(member._id, req.params.id);
+            const user_stats = await getUserLeagueStats(member.user, req.params.id);
             response.push({
                 points: user_stats.total_points,
                 tasks_completed: user_stats.completed_tasks,
@@ -350,7 +349,7 @@ const getLeagueDetailed = async (league) => {
     return {
         ...league.toJSON(),
         participant_count: league_members.length,
-        progress: Math.round(completed_tasks.length / league_tasks.length),
+        progress: Math.round((completed_tasks.length / league_tasks.length) * 100),
         total_tasks: league_tasks.length,
         tasks_completed: completed_tasks.length
     }
