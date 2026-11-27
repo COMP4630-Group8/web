@@ -226,7 +226,6 @@ router.get('/:id/members', verifyToken(), async (req, res) => {
 });
 
 router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, res) => {
-    console.log(req.body);
     const { task_id, summary } = req.body;
     const validMember = await isValidMember(req.params.id, req.user.id);
     const league = await League.findById(req.params.id);
