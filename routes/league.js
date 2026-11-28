@@ -274,7 +274,9 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
                 data: null
             });
         } else {
+
             let image_url = null;
+
             if (task.accepts_image) {
                 const uploadFolder = `leagues/${req.params.id}/submissions`;
                 image_url = await uploadImage(req.file, uploadFolder, {
@@ -283,6 +285,7 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
                     original_name: req.file.originalname
                 });
             }
+
             if (!task.accepts_image && (!summary || summary == '')) {
                 return res.status(400).json({
                     error: true,
@@ -290,10 +293,12 @@ router.post('/:id/submit', upload.single('image'), verifyToken(), async (req, re
                     data: null
                 });
             }
+
             let finalized_summary = summary;
             if (task.accepts_image && (summary == '' || summary == null)) {
                 finalized_summary = null;
             }
+            
             const newSubmission = new Submission({
                 summary: finalized_summary,
                 image_url: image_url,
